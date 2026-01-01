@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: smart-house-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: smart-house
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - smart-house-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./Smart_Home_back
+      dockerfile: Dockerfile
+    container_name: smart-house-backend
+    ports:
+      - "8085:8085"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart-house?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+    networks:
+      - smart-house-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./smartHome-front
+      dockerfile: Dockerfile
+    container_name: smart-house-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    networks:
+      - smart-house-network
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: smart-house-phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "8081:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - smart-house-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  smart-house-network:
+    driver: bridge
